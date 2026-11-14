@@ -1,0 +1,11 @@
+.git
+.agents
+.aws
+.codex
+.env
+.env.*
+!.env.example
+*.docx
+bin
+coverage.out
+coverage.html

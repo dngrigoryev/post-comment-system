@@ -1,0 +1,13 @@
+version: "2"
+sql:
+  - engine: postgresql
+    schema: db/migrations
+    queries:
+      - internal/repository/postgres/posts
+      - internal/repository/postgres/comments
+      - internal/repository/postgres/users
+    gen:
+      go:
+        package: dbgen
+        out: internal/repository/postgres/dbgen
+        sql_package: pgx/v5

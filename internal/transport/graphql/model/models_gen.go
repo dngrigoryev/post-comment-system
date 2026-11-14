@@ -1,0 +1,63 @@
+package model
+
+import (
+	"time"
+)
+
+type AddCommentInput struct {
+	PostID          string  `json:"postId"`
+	ParentCommentID *string `json:"parentCommentId,omitempty"`
+	Content         string  `json:"content"`
+}
+
+type Comment struct {
+	ID        string       `json:"id"`
+	Content   string       `json:"content"`
+	Author    *User        `json:"author"`
+	CreatedAt time.Time    `json:"createdAt"`
+	Replies   *CommentPage `json:"replies"`
+	AuthorID  int64        `json:"-"`
+	PostID    int64        `json:"-"`
+}
+
+type CommentPage struct {
+	Nodes    []*Comment `json:"nodes"`
+	PageInfo *PageInfo  `json:"pageInfo"`
+}
+
+type CreatePostInput struct {
+	Title   string `json:"title"`
+	Content string `json:"content"`
+}
+
+type Mutation struct {
+}
+
+type PageInfo struct {
+	EndCursor   *string `json:"endCursor,omitempty"`
+	HasNextPage bool    `json:"hasNextPage"`
+}
+
+type Post struct {
+	ID                string       `json:"id"`
+	Title             string       `json:"title"`
+	Content           string       `json:"content"`
+	Author            *User        `json:"author"`
+	CommentsPermitted bool         `json:"commentsPermitted"`
+	CreatedAt         time.Time    `json:"createdAt"`
+	Comments          *CommentPage `json:"comments"`
+	AuthorID          int64        `json:"-"`
+}
+
+type PostPage struct {
+	Nodes    []*Post   `json:"nodes"`
+	PageInfo *PageInfo `json:"pageInfo"`
+}
+
+type Query struct {
+}
+
+type User struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
