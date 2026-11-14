@@ -94,7 +94,7 @@ func TestAddCommentBusinessRules(t *testing.T) {
 			}
 			s := NewService(repo, postReaderFunc(func(_ context.Context, id int64) (*domain.Post, error) {
 				return &domain.Post{ID: id, CommentsPermitted: !tc.disabled}, tc.postErr
-			}))
+			}), eventsStub{})
 			c, err := s.AddComment(t.Context(), tc.user, tc.post, tc.parent, tc.text)
 			if !errors.Is(err, tc.want) {
 				t.Fatalf("got %v want %v", err, tc.want)
@@ -123,7 +123,7 @@ func TestReadPages(t *testing.T) {
 					return &domain.CommentPage{Nodes: []domain.Comment{{ID: 3}}}, storageErr
 				},
 			}
-			s := NewService(repo, postReaderFunc(func(context.Context, int64) (*domain.Post, error) { return &domain.Post{}, nil }))
+			s := NewService(repo, postReaderFunc(func(context.Context, int64) (*domain.Post, error) { return &domain.Post{}, nil }), eventsStub{})
 			read := s.ListPostComments
 			if reply {
 				read = s.ListReplies
@@ -145,7 +145,7 @@ func TestReadPages(t *testing.T) {
 			}
 		}
 	}
-	s := NewService(repositoryStub{get: func(context.Context, int64) (*domain.Comment, error) { return nil, domain.ErrNotFound }}, postReaderFunc(func(context.Context, int64) (*domain.Post, error) { return nil, domain.ErrNotFound }))
+	s := NewService(repositoryStub{get: func(context.Context, int64) (*domain.Comment, error) { return nil, domain.ErrNotFound }}, postReaderFunc(func(context.Context, int64) (*domain.Post, error) { return nil, domain.ErrNotFound }), eventsStub{})
 	_, err := s.ListPostComments(t.Context(), 1, domain.PageRequest{First: 1})
 	if !errors.Is(err, domain.ErrNotFound) {
 		t.Fatal(err)
@@ -171,7 +171,7 @@ func TestBatchIsolatesInvalidRequests(t *testing.T) {
 			return []*domain.CommentPage{{}}, []error{nil}
 		},
 	}
-	s := NewService(repo, nil)
+	s := NewService(repo, nil, eventsStub{})
 	pages, errs := s.ListPostCommentsBatch(t.Context(), []domain.PostCommentsRequest{{PostID: 1, Page: domain.PageRequest{First: 1}}, {PostID: 0, Page: domain.PageRequest{First: 1}}, {PostID: 1, Page: domain.PageRequest{First: 101}}, {PostID: 2, Page: domain.PageRequest{First: 1}}})
 	if len(pages) != 4 || pages[0].Nodes[0].ID != 10 || errs[0] != nil || !errors.Is(errs[1], domain.ErrInvalidArgument) || !errors.Is(errs[2], domain.ErrInvalidArgument) || !errors.Is(errs[3], domain.ErrNotFound) {
 		t.Fatal(pages, errs)
@@ -192,7 +192,7 @@ func TestTreePlanPrunesInvalidBranches(t *testing.T) {
 			t.Fatalf("bad filtered plan %+v", r)
 		}
 		return []domain.CommentTreePage{{SelectionID: 3}}, nil
-	}}, nil)
+	}}, nil, eventsStub{})
 	r := domain.CommentTreeRequest{Roots: []domain.CommentTreeRoot{{PostID: 1}}, Selections: []domain.CommentSelection{{ID: 1, Page: domain.PageRequest{First: 1}, Replies: []domain.CommentSelection{{ID: 2, Page: domain.PageRequest{First: 0}}, {ID: 3, Page: domain.PageRequest{First: 1}}}}}}
 	pages, err := s.LoadCommentTree(t.Context(), r)
 	if err != nil || len(pages) != 1 {
@@ -211,8 +211,22 @@ func TestTreePlanPrunesInvalidBranches(t *testing.T) {
 	if !errors.Is(err, domain.ErrInvalidArgument) {
 		t.Fatal(err)
 	}
-	pages, err = NewService(repositoryStub{}, nil).LoadCommentTree(t.Context(), domain.CommentTreeRequest{})
+	pages, err = NewService(repositoryStub{}, nil, eventsStub{}).LoadCommentTree(t.Context(), domain.CommentTreeRequest{})
 	if err != nil || len(pages) != 0 {
 		t.Fatal(pages, err)
 	}
+}
+
+type eventsStub struct {
+	publish   func(domain.Comment)
+	subscribe func(context.Context, int64) <-chan domain.Comment
+}
+
+func (e eventsStub) PublishCommentAdded(c domain.Comment) {
+	if e.publish != nil {
+		e.publish(c)
+	}
+}
+func (e eventsStub) SubscribeComments(ctx context.Context, id int64) <-chan domain.Comment {
+	return e.subscribe(ctx, id)
 }

@@ -90,10 +90,14 @@ func newLoaders(users UserService, comments CommentService) *loaders {
 
 type contextKey struct{}
 
+func WithContext(ctx context.Context, users UserService, comments CommentService) context.Context {
+	return context.WithValue(ctx, contextKey{}, newLoaders(users, comments))
+}
+
 func Middleware(users UserService, comments CommentService) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			ctx := context.WithValue(r.Context(), contextKey{}, newLoaders(users, comments))
+			ctx := WithContext(r.Context(), users, comments)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}

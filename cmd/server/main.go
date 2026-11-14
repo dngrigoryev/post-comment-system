@@ -13,6 +13,7 @@ import (
 
 	"client-services/internal/config"
 	"client-services/internal/domain"
+	commentEvents "client-services/internal/pubsub/comments"
 	"client-services/internal/repository/memory"
 	"client-services/internal/repository/postgres"
 	commentservice "client-services/internal/service/comments"
@@ -52,17 +53,22 @@ func run(ctx context.Context) error {
 	}
 	defer closeRepository()
 
+	events := commentEvents.New()
+	defer events.Close()
 	resolvers := &resolver.Resolver{
 		PostService:    postservice.NewService(repo),
 		UserService:    userservice.NewService(repo),
-		CommentService: commentservice.NewService(repo, repo),
+		CommentService: commentservice.NewService(repo, repo, events),
 	}
 	tokens := make(map[string]int64, len(cfg.AuthUsers))
 	for _, user := range cfg.AuthUsers {
 		tokens[user.Token] = user.ID
 	}
 	mux := http.NewServeMux()
-	mux.Handle("/query", middleware.Auth(tokens)(graphqltransport.NewHandler(resolvers)))
+	auth := middleware.NewAuthenticator(tokens)
+	graph := graphqltransport.NewHandler(resolvers, auth.Authenticate)
+	defer graph.Close()
+	mux.Handle("/query", auth.Middleware(graph))
 	mux.Handle("GET /{$}", playground.Handler("GraphQL", "/query"))
 	server := &http.Server{
 		Addr:              cfg.HTTPAddr,

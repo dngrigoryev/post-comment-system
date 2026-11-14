@@ -27,10 +27,11 @@ type Repository interface {
 type Service struct {
 	comments Repository
 	posts    PostReader
+	events   Events
 }
 
-func NewService(comments Repository, posts PostReader) *Service {
-	return &Service{comments: comments, posts: posts}
+func NewService(comments Repository, posts PostReader, events Events) *Service {
+	return &Service{comments: comments, posts: posts, events: events}
 }
 
 func (s *Service) AddComment(ctx context.Context, userID, postID int64, parentCommentID *int64, content string) (*domain.Comment, error) {
@@ -73,6 +74,7 @@ func (s *Service) AddComment(ctx context.Context, userID, postID int64, parentCo
 	if err != nil {
 		return nil, fmt.Errorf("add comment: %w", err)
 	}
+	s.events.PublishCommentAdded(*comment)
 	return comment, nil
 }
 

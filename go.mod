@@ -6,6 +6,7 @@ tool github.com/99designs/gqlgen
 
 require (
 	github.com/99designs/gqlgen v0.17.98
+	github.com/coder/websocket v1.8.15
 	github.com/jackc/pgx/v5 v5.13.0
 	github.com/vektah/gqlparser/v2 v2.5.64
 	github.com/vikstrous/dataloadgen v0.0.10
@@ -13,7 +14,6 @@ require (
 
 require (
 	github.com/agnivade/levenshtein v1.2.2 // indirect
-	github.com/coder/websocket v1.8.15 // indirect
 	github.com/go-viper/mapstructure/v2 v2.5.0 // indirect
 	github.com/goccy/go-yaml v1.19.2 // indirect
 	github.com/google/uuid v1.6.0 // indirect

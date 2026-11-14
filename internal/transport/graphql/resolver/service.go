@@ -16,6 +16,7 @@ type PostService interface {
 
 type CommentService interface {
 	loader.CommentService
+	SubscribeComments(ctx context.Context, postID int64) (<-chan domain.Comment, error)
 	AddComment(ctx context.Context, userID, postID int64, parentCommentID *int64, content string) (*domain.Comment, error)
 }
 

@@ -1,5 +1,9 @@
 scalar Time
 
+type Subscription {
+  commentAdded(postId: ID!): Comment!
+}
+
 type Query {
   posts(first: Int! = 20, after: String): PostPage!
   post(id: ID!): Post

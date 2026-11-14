@@ -134,6 +134,40 @@ func (r *queryResolver) Post(ctx context.Context, id string) (*model.Post, error
 	return convert.Post(post), nil
 }
 
+func (r *subscriptionResolver) CommentAdded(ctx context.Context, postID string) (<-chan *model.Comment, error) {
+	id, err := convert.ID("post ID", postID)
+	if err != nil {
+		return nil, convert.Error(err)
+	}
+	ctx, cancel := context.WithCancel(ctx)
+	comments, err := r.CommentService.SubscribeComments(ctx, id)
+	if err != nil {
+		cancel()
+		return nil, convert.Error(err)
+	}
+	result := make(chan *model.Comment)
+	go func() {
+		defer close(result)
+		defer cancel()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case comment, ok := <-comments:
+				if !ok {
+					return
+				}
+				select {
+				case result <- convert.Comment(&comment):
+				case <-ctx.Done():
+					return
+				}
+			}
+		}
+	}()
+	return result, nil
+}
+
 func (r *Resolver) Comment() generated.CommentResolver { return &commentResolver{r} }
 
 func (r *Resolver) Mutation() generated.MutationResolver { return &mutationResolver{r} }
@@ -142,9 +176,12 @@ func (r *Resolver) Post() generated.PostResolver { return &postResolver{r} }
 
 func (r *Resolver) Query() generated.QueryResolver { return &queryResolver{r} }
 
+func (r *Resolver) Subscription() generated.SubscriptionResolver { return &subscriptionResolver{r} }
+
 type (
-	commentResolver  struct{ *Resolver }
-	mutationResolver struct{ *Resolver }
-	postResolver     struct{ *Resolver }
-	queryResolver    struct{ *Resolver }
+	commentResolver      struct{ *Resolver }
+	mutationResolver     struct{ *Resolver }
+	postResolver         struct{ *Resolver }
+	queryResolver        struct{ *Resolver }
+	subscriptionResolver struct{ *Resolver }
 )

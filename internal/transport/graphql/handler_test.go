@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"client-services/internal/domain"
+	commentEvents "client-services/internal/pubsub/comments"
 	"client-services/internal/repository/memory"
 	commentservice "client-services/internal/service/comments"
 	postservice "client-services/internal/service/posts"
@@ -90,16 +91,20 @@ func errorCode(t *testing.T, r map[string]any, want string) {
 		t.Fatalf("got %v want %s", code, want)
 	}
 }
-func handler(repo *memory.Repository) (http.Handler, *commentProbe, *userProbe) {
-	c := &commentProbe{CommentService: commentservice.NewService(repo, repo)}
+func handler(t *testing.T, repo *memory.Repository) (http.Handler, *commentProbe, *userProbe) {
+	events := commentEvents.New()
+	t.Cleanup(events.Close)
+	c := &commentProbe{CommentService: commentservice.NewService(repo, repo, events)}
 	u := &userProbe{UserService: userservice.NewService(repo)}
-	h := graphqltransport.NewHandler(&resolver.Resolver{PostService: postservice.NewService(repo), CommentService: c, UserService: u})
-	return middleware.Auth(map[string]int64{"owner": 1, "other": 2})(h), c, u
+	auth := middleware.NewAuthenticator(map[string]int64{"owner": 1, "other": 2})
+	h := graphqltransport.NewHandler(&resolver.Resolver{PostService: postservice.NewService(repo), CommentService: c, UserService: u}, auth.Authenticate)
+	t.Cleanup(h.Close)
+	return auth.Middleware(h), c, u
 }
 
 func TestMutationsAuthenticationAndCacheInvalidation(t *testing.T) {
 	repo := memory.New(domain.User{ID: 1, Name: "Alice"}, domain.User{ID: 2, Name: "Bob"})
-	h, _, _ := handler(repo)
+	h, _, _ := handler(t, repo)
 	q := `mutation{createPost(input:{title:"post",content:"text"}){id}}`
 	errorCode(t, request(t, h, q, "", nil), "UNAUTHENTICATED")
 	data := success(t, request(t, h, q, "owner", nil))
@@ -142,7 +147,7 @@ func TestPrefetchBatchesAllSelectedLevels(t *testing.T) {
 			}
 		}
 	}
-	h, c, u := handler(repo)
+	h, c, u := handler(t, repo)
 	query := `query($n:Int!=2,$show:Boolean!=true){posts(first:20){nodes{id author{id} comments(first:$n){nodes{... C}}}}} fragment C on Comment{id author{id} replies(first:1) @include(if:$show){nodes{id author{id} replies(first:1){nodes{id author{id} replies(first:1){nodes{id author{id} replies(first:1){nodes{id}}}}}}}}}`
 	for attempt := 1; attempt <= 2; attempt++ {
 		data := success(t, request(t, h, query, "", nil))
